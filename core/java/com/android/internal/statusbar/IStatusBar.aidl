@@ -173,7 +173,7 @@ oneway interface IStatusBar
     void showPinningEnterExitToast(boolean entering);
     void showPinningEscapeToast();
 
-    void showShutdownUi(boolean isReboot, String reason, boolean rebootCustom);
+    void showShutdownUi(boolean isReboot, String reason);
 
     /**
     * Used to show the authentication dialog (Biometrics, Device Credential).
@@ -390,4 +390,9 @@ oneway interface IStatusBar
     * @param displayId the id of the current display.
     */
     void moveFocusedTaskToDesktop(int displayId);
+
+    /**
+     * Toggles flashlight of the device
+     */
+    void toggleCameraFlash();
 }

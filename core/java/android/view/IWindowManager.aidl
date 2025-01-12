@@ -1103,9 +1103,4 @@ interface IWindowManager
      * @param deviceId The id of the {@link InputDevice} that will handle the shortcut.
      */
     KeyboardShortcutGroup getApplicationLaunchKeyboardShortcuts(int deviceId);
-
-    /**
-     * Notifies DisplayPolicy that overlays changed.
-     */
-    void onOverlayChanged();
 }

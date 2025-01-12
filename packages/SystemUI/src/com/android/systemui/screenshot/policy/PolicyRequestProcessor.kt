@@ -155,6 +155,7 @@ class PolicyRequestProcessor(
         Log.i(TAG, "Capturing screenshot: $componentName / $owner")
         val screenshot = captureDisplay(displayId)
         return original.copy(
+            type = TAKE_SCREENSHOT_FULLSCREEN,
             bitmap = screenshot,
             userHandle = owner,
             topComponent = componentName,

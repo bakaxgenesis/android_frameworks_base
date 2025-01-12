@@ -19,8 +19,7 @@ package com.android.systemui.statusbar.policy;
 import android.annotation.NonNull;
 import android.content.Context;
 import android.content.res.Resources;
-import android.database.ContentObserver;
-import android.net.Uri;
+import android.content.ContentResolver;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.ArraySet;
@@ -37,8 +36,6 @@ import com.android.systemui.settings.brightness.ToggleSlider;
 import com.android.systemui.shade.NotificationShadeWindowView;
 import com.android.systemui.shade.ShadeViewController;
 import com.android.systemui.statusbar.NotificationShadeDepthController;
-
-import lineageos.providers.LineageSettings;
 
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -59,15 +56,16 @@ public class BrightnessMirrorController implements MirrorController {
     private FrameLayout mBrightnessMirror;
     private int mBrightnessMirrorBackgroundPadding;
     private int mLastBrightnessSliderWidth = -1;
-    private boolean mShouldShowAutoBrightness;
-    private boolean mIsAutomaticBrightnessAvailable;
     private ImageView mIcon;
+    private Context mContext;
 
-    public BrightnessMirrorController(NotificationShadeWindowView statusBarWindow,
+    public BrightnessMirrorController(Context context,
+	    NotificationShadeWindowView statusBarWindow,
             ShadeViewController shadeViewController,
             NotificationShadeDepthController notificationShadeDepthController,
             BrightnessSliderController.Factory factory,
             @NonNull Consumer<Boolean> visibilityCallback) {
+        mContext = context;
         mStatusBarWindow = statusBarWindow;
         mToggleSliderFactory = factory;
         mBrightnessMirror = statusBarWindow.findViewById(R.id.brightness_mirror_container);
@@ -78,34 +76,18 @@ public class BrightnessMirrorController implements MirrorController {
             mBrightnessMirror.setVisibility(View.INVISIBLE);
         });
         mVisibilityCallback = visibilityCallback;
+        mIcon = (ImageView) mBrightnessMirror.findViewById(R.id.brightness_icon);
+        mIcon.setVisibility(View.VISIBLE);
         updateResources();
-
-        mIsAutomaticBrightnessAvailable = mBrightnessMirror.getContext().getResources().getBoolean(
-                com.android.internal.R.bool.config_automatic_brightness_available);
-        mShouldShowAutoBrightness = LineageSettings.Secure.getInt(
-                mBrightnessMirror.getContext().getContentResolver(),
-                LineageSettings.Secure.QS_SHOW_AUTO_BRIGHTNESS, 0) != 0;
-        updateIcon();
-        mBrightnessMirror.getContext().getContentResolver().registerContentObserver(
-                LineageSettings.Secure.getUriFor(LineageSettings.Secure.QS_SHOW_AUTO_BRIGHTNESS),
-                false, new ContentObserver(null) {
-                    @Override
-                    public void onChange(boolean selfChange) {
-                        mShouldShowAutoBrightness = LineageSettings.Secure.getInt(
-                                mBrightnessMirror.getContext().getContentResolver(),
-                                LineageSettings.Secure.QS_SHOW_AUTO_BRIGHTNESS, 0) != 0;
-                        updateIcon();
-                    }
-                });
     }
 
     @Override
     public void showMirror() {
+        updateIcon();
         mBrightnessMirror.setVisibility(View.VISIBLE);
         mVisibilityCallback.accept(true);
         mNotificationPanel.setAlpha(0, true /* animate */);
         mDepthController.setBrightnessMirrorVisible(true);
-        updateIcon();
     }
 
     @Override
@@ -173,7 +155,6 @@ public class BrightnessMirrorController implements MirrorController {
 
         mBrightnessMirror.addView(controller.getRootView(), ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT);
-        mIcon = mBrightnessMirror.findViewById(R.id.brightness_icon);
 
         return controller;
     }
@@ -208,19 +189,20 @@ public class BrightnessMirrorController implements MirrorController {
     }
 
     private void updateIcon() {
-        if (mIsAutomaticBrightnessAvailable && mShouldShowAutoBrightness) {
-            int automatic = Settings.System.getIntForUser(mBrightnessMirror.getContext()
-                            .getContentResolver(),
-                    Settings.System.SCREEN_BRIGHTNESS_MODE,
-                    Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL,
-                    UserHandle.USER_CURRENT);
-            boolean isAutomatic = automatic != Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL;
-            mIcon.setImageResource(isAutomatic
-                    ? R.drawable.ic_qs_brightness_auto_on
-                    : R.drawable.ic_qs_brightness_auto_off);
-            mIcon.setVisibility(View.VISIBLE);
-        } else {
-            mIcon.setVisibility(View.GONE);
+        if (mIcon == null) {
+            return;
         }
+        // enable the auto brightness icon
+        mIcon = (ImageView) mBrightnessMirror.findViewById(R.id.brightness_icon);
+        boolean automatic = Settings.System.getIntForUser(mContext.getContentResolver(),
+                Settings.System.SCREEN_BRIGHTNESS_MODE,
+                Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL,
+                UserHandle.USER_CURRENT) != Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL;
+        mIcon.setImageResource(automatic ?
+                R.drawable.ic_qs_brightness_auto_on :
+                R.drawable.ic_qs_brightness_auto_off);
+        mIcon.setBackgroundResource(automatic ?
+                R.drawable.bg_qs_brightness_auto_on :
+                R.drawable.bg_qs_brightness_auto_off);
     }
 }

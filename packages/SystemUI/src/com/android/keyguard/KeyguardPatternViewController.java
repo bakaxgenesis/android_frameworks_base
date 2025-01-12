@@ -109,7 +109,7 @@ public class KeyguardPatternViewController
         }
 
         @Override
-        public void onPatternDetected(final List<LockPatternView.Cell> pattern, byte patternSize) {
+        public void onPatternDetected(final List<LockPatternView.Cell> pattern) {
             mKeyguardUpdateMonitor.setCredentialAttempted();
             mLockPatternView.disableInput();
             if (mPendingLockCheck != null) {
@@ -132,7 +132,7 @@ public class KeyguardPatternViewController
             mLatencyTracker.onActionStart(ACTION_CHECK_CREDENTIAL_UNLOCKED);
             mPendingLockCheck = LockPatternChecker.checkCredential(
                     mLockPatternUtils,
-                    LockscreenCredential.createPattern(pattern, patternSize),
+                    LockscreenCredential.createPattern(pattern),
                     userId,
                     new LockPatternChecker.OnCheckCallback() {
 
@@ -235,15 +235,10 @@ public class KeyguardPatternViewController
     @Override
     protected void onViewAttached() {
         super.onViewAttached();
-        int userId = KeyguardUpdateMonitor.getCurrentUser();
         mLockPatternView.setOnPatternListener(new UnlockPatternListener());
         mLockPatternView.setSaveEnabled(false);
         mLockPatternView.setInStealthMode(!mLockPatternUtils.isVisiblePatternEnabled(
                 mSelectedUserInteractor.getSelectedUserId()));
-        mLockPatternView.setLockPatternUtils(mLockPatternUtils);
-        mLockPatternView.setLockPatternSize(mLockPatternUtils.getLockPatternSize(userId));
-        mLockPatternView.setVisibleDots(mLockPatternUtils.isVisibleDotsEnabled(userId));
-        mLockPatternView.setShowErrorPath(mLockPatternUtils.isShowErrorPath(userId));
         mLockPatternView.setOnTouchListener((v, event) -> {
             if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
                 mFalsingCollector.avoidGesture();

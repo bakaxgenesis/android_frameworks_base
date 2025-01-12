@@ -101,7 +101,8 @@ interface IStatusBarService
      * These methods are needed for global actions control which the UI is shown in sysui.
      */
     void shutdown();
-    void reboot(boolean safeMode, String reason);
+    void reboot(boolean safeMode);
+    void advancedReboot(String mode);
 
     /** just restarts android without rebooting device. Used for some feature flags. */
     void restart();
@@ -231,7 +232,7 @@ interface IStatusBarService
     void showRearDisplayDialog(int currentBaseState);
 
     /**
-     * Starts the default assistant app.
+     * Toggles flashlight of the device
      */
-    void startAssist(in Bundle args);
+    void toggleCameraFlash();
 }

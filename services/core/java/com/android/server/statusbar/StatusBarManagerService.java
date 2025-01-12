@@ -691,14 +691,14 @@ public class StatusBarManagerService extends IStatusBarService.Stub implements D
         }
 
         @Override
-        public boolean showShutdownUi(boolean isReboot, String reason, boolean rebootCustom) {
+        public boolean showShutdownUi(boolean isReboot, String reason) {
             if (!mContext.getResources().getBoolean(R.bool.config_showSysuiShutdown)) {
                 return false;
             }
             IStatusBar bar = mBar;
             if (bar != null) {
                 try {
-                    bar.showShutdownUi(isReboot, reason, rebootCustom);
+                    bar.showShutdownUi(isReboot, reason);
                     return true;
                 } catch (RemoteException ex) {}
             }
@@ -1320,6 +1320,17 @@ public class StatusBarManagerService extends IStatusBarService.Stub implements D
         return mTracingEnabled;
     }
 
+    @Override
+    public void toggleCameraFlash() {
+        if (mBar != null) {
+            try {
+                mBar.toggleCameraFlash();
+            } catch (RemoteException ex) {
+                Slog.e(TAG, "Unable to toggle camera flash:", ex);
+            }
+        }
+    }
+
     // TODO(b/117478341): make it aware of multi-display if needed.
     @Override
     public void disable(int what, IBinder token, String pkg) {
@@ -1811,10 +1822,13 @@ public class StatusBarManagerService extends IStatusBarService.Stub implements D
      * Allows the status bar to reboot the device.
      */
     @Override
-    public void reboot(boolean safeMode, String reason) {
+    public void reboot(boolean safeMode) {
         enforceStatusBarService();
         enforceValidCallingUser();
 
+        String reason = safeMode
+                ? PowerManager.REBOOT_SAFE_MODE
+                : PowerManager.SHUTDOWN_USER_REQUESTED;
         ShutdownCheckPoints.recordCheckPoint(Binder.getCallingPid(), reason);
         final long identity = Binder.clearCallingIdentity();
         try {
@@ -1824,7 +1838,7 @@ public class StatusBarManagerService extends IStatusBarService.Stub implements D
                 if (safeMode) {
                     ShutdownThread.rebootSafeMode(getUiContext(), true);
                 } else {
-                    ShutdownThread.rebootCustom(getUiContext(), reason, false);
+                    ShutdownThread.reboot(getUiContext(), reason, false);
                 }
             });
         } finally {
@@ -1844,6 +1858,24 @@ public class StatusBarManagerService extends IStatusBarService.Stub implements D
         try {
             mHandler.post(() -> {
                 mActivityManagerInternal.restart();
+            });
+        } finally {
+            Binder.restoreCallingIdentity(identity);
+        }
+    }
+
+    /**
+     * Allows the status bar to reboot the device to recovery or bootloader.
+     */
+    @Override
+    public void advancedReboot(String mode) {
+        enforceStatusBarService();
+        long identity = Binder.clearCallingIdentity();
+        try {
+            mHandler.post(() -> {
+                // ShutdownThread displays UI, so give it a UI context.
+                    ShutdownThread.reboot(getUiContext(),
+                            mode, false/*don't ask for confirmation*/);
             });
         } finally {
             Binder.restoreCallingIdentity(identity);
@@ -2639,18 +2671,6 @@ public class StatusBarManagerService extends IStatusBarService.Stub implements D
                 bar.showRearDisplayDialog(currentState);
             } catch (RemoteException e) {
                 Slog.e(TAG, "showRearDisplayDialog", e);
-            }
-        }
-    }
-
-    @Override
-    public void startAssist(Bundle args) {
-        enforceStatusBarService();
-        if (mBar != null) {
-            try {
-                mBar.startAssist(args);
-            } catch (RemoteException e) {
-                Slog.e(TAG, "startAssist", e);
             }
         }
     }

@@ -115,17 +115,9 @@ class KeyguardQuickAffordanceOnTouchListener(
         view.setOnClickListener {
             vibratorHelper?.vibrate(
                 if (viewModel.isActivated) {
-                    if (KeyguardBottomAreaVibrations.areAllPrimitivesSupported) {
-                        KeyguardBottomAreaVibrations.Activated
-                    } else {
-                        KeyguardBottomAreaVibrations.ActivatedAlt
-                    }
+                    KeyguardBottomAreaVibrations.Activated
                 } else {
-                    if (KeyguardBottomAreaVibrations.areAllPrimitivesSupported) {
-                        KeyguardBottomAreaVibrations.Deactivated
-                    } else {
-                        KeyguardBottomAreaVibrations.DeactivatedAlt
-                    }
+                    KeyguardBottomAreaVibrations.Deactivated
                 }
             )
             viewModel.onClicked(

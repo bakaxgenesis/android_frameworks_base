@@ -254,8 +254,6 @@ import com.android.server.utils.WatchedSparseBooleanArray;
 import com.android.server.utils.WatchedSparseIntArray;
 import com.android.server.utils.Watcher;
 
-import com.nvidia.NvAppProfileService;
-
 import dalvik.system.VMRuntime;
 
 import libcore.util.EmptyArray;
@@ -811,9 +809,6 @@ public class PackageManagerService implements PackageSender, TestUtilityService 
     final SparseArray<VerifyingSession> mPendingEnableRollback = new SparseArray<>();
 
     final PackageInstallerService mInstallerService;
-
-    private NvAppProfileService mAppProfileService;
-
     final ArtManagerService mArtManagerService;
 
     // TODO(b/260124949): Remove these.

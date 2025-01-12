@@ -15,18 +15,22 @@
  */
 package com.android.systemui.globalactions;
 
+import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
+
 import android.annotation.NonNull;
 import android.app.Dialog;
 import android.content.Context;
-import android.content.res.Resources;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
-import android.view.WindowManager;
-import android.widget.ListAdapter;
+import android.view.WindowInsets;
+import android.view.WindowManager.LayoutParams;
+import android.widget.LinearLayout;
 
-import androidx.constraintlayout.helper.widget.Flow;
+import com.android.systemui.MultiListLayout;
+import com.android.systemui.MultiListLayout.MultiListAdapter;
+import com.android.systemui.res.R;
 
 /**
  * Creates a customized Dialog for displaying the Shut Down and Restart actions.
@@ -36,44 +40,56 @@ public class GlobalActionsPowerDialog {
     /**
      * Create a dialog for displaying Shut Down and Restart actions.
      */
-    public static Dialog create(@NonNull Context context, ListAdapter adapter) {
-        ViewGroup listView = (ViewGroup) LayoutInflater.from(context).inflate(
-                com.android.systemui.res.R.layout.global_actions_power_dialog_flow, null);
+    public static Dialog create(@NonNull Context context, MultiListAdapter adapter) {
+        final ViewGroup view = (ViewGroup) LayoutInflater.from(context).inflate(
+                R.layout.global_actions_grid_lite, null);
 
-        Flow flow = listView.findViewById(com.android.systemui.res.R.id.power_flow);
+        final MultiListLayout multiListLayout = view.findViewById(R.id.global_actions_view);
+        multiListLayout.setAdapter(adapter);
 
-        for (int i = 0; i < adapter.getCount(); i++) {
-            View action = adapter.getView(i, null, listView);
-            action.setId(View.generateViewId());
-            listView.addView(action);
-            flow.addView(action);
+        final View overflowButton = view.findViewById(R.id.global_actions_overflow_button);
+        if (overflowButton != null) {
+            overflowButton.setVisibility(View.GONE);
+            final LinearLayout.LayoutParams params =
+                (LinearLayout.LayoutParams) multiListLayout.getLayoutParams();
+            params.setMarginEnd(context.getResources().getDimensionPixelSize(
+                    R.dimen.global_actions_side_margin));
+            multiListLayout.setLayoutParams(params);
         }
 
-        Resources res = context.getResources();
+        final Dialog dialog = new Dialog(context) {
+            @Override
+            protected void onStart() {
+                super.onStart();
+                multiListLayout.updateList();
+            }
 
-        int nElementsWrap = res.getInteger(
-                com.android.systemui.res.R.integer.power_menu_lite_max_columns);
-        int nChildren = listView.getChildCount() - 1; // don't count flow element
+            @Override
+            public void show() {
+                super.show();
+                view.setOnApplyWindowInsetsListener((v, windowInsets) -> {
+                    view.setPadding(
+                        windowInsets.getStableInsetLeft(),
+                        windowInsets.getStableInsetTop(),
+                        windowInsets.getStableInsetRight(),
+                        windowInsets.getStableInsetBottom()
+                    );
+                    return WindowInsets.CONSUMED;
+                });
+            }
+        };
 
-        // Avoid having just one action on the last row if there are more than 2 columns because
-        // it looks unbalanced. Instead, bring the column size down to balance better.
-        if (nChildren == nElementsWrap + 1 && nElementsWrap > 2) {
-            nElementsWrap -= 1;
-        }
-        flow.setMaxElementsWrap(nElementsWrap);
+        final Window window = dialog.getWindow();
+        window.setLayout(WRAP_CONTENT, WRAP_CONTENT);
+        window.setType(LayoutParams.TYPE_VOLUME_OVERLAY);
+        window.addFlags(
+            LayoutParams.FLAG_ALT_FOCUSABLE_IM |
+            LayoutParams.FLAG_SHOW_WHEN_LOCKED |
+            LayoutParams.FLAG_HARDWARE_ACCELERATED
+        );
 
-        Dialog dialog = new Dialog(context);
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-        dialog.setContentView(listView);
-
-        Window window = dialog.getWindow();
-        window.setType(WindowManager.LayoutParams.TYPE_VOLUME_OVERLAY);
-        window.setTitle(""); // prevent Talkback from speaking first item name twice
-        window.setBackgroundDrawable(res.getDrawable(
-                com.android.systemui.res.R.drawable.global_actions_lite_background,
-                context.getTheme()));
-        window.addFlags(WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM);
-
+        dialog.setContentView(view);
         return dialog;
     }
 }

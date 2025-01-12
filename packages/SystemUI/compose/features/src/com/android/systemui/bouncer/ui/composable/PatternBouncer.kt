@@ -484,7 +484,7 @@ private suspend fun showFailureAnimation(
 private fun offset(
     availableSize: Int,
     spacingPerDot: Float,
-    dotCount: Byte,
+    dotCount: Int,
     isCentered: Boolean = false,
 ): Float {
     val default = availableSize - spacingPerDot * dotCount

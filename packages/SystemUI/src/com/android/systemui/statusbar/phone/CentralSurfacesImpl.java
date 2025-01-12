@@ -53,7 +53,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Configuration;
-import android.database.ContentObserver;
 import android.graphics.Point;
 import android.hardware.devicestate.DeviceStateManager;
 import android.hardware.fingerprint.FingerprintManager;
@@ -221,6 +220,7 @@ import com.android.systemui.statusbar.notification.stack.NotificationStackScroll
 import com.android.systemui.statusbar.phone.dagger.StatusBarPhoneModule;
 import com.android.systemui.statusbar.policy.BatteryController;
 import com.android.systemui.statusbar.policy.BrightnessMirrorController;
+import com.android.systemui.statusbar.policy.BurnInProtectionController;
 import com.android.systemui.statusbar.policy.ConfigurationController;
 import com.android.systemui.statusbar.policy.ConfigurationController.ConfigurationListener;
 import com.android.systemui.statusbar.policy.DeviceProvisionedController;
@@ -243,8 +243,6 @@ import com.android.wm.shell.startingsurface.SplashscreenContentDrawer;
 import com.android.wm.shell.startingsurface.StartingSurface;
 
 import dagger.Lazy;
-
-import lineageos.providers.LineageSettings;
 
 import dalvik.annotation.optimization.NeverCompile;
 
@@ -356,6 +354,11 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
     @Override
     public QSPanelController getQSPanelController() {
         return mQSPanelController;
+    }
+
+    /** */
+    public void toggleCameraFlash() {
+        mCommandQueueCallbacks.toggleCameraFlash();
     }
 
     /**
@@ -602,6 +605,8 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
 
     private final ViewCaptureAwareWindowManager mViewCaptureAwareWindowManager;
 
+    private final BurnInProtectionController mBurnInProtectionController;
+
     /**
      * Public constructor for CentralSurfaces.
      *
@@ -715,7 +720,8 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
             BrightnessMirrorShowingInteractor brightnessMirrorShowingInteractor,
             GlanceableHubContainerController glanceableHubContainerController,
             EmergencyGestureIntentFactory emergencyGestureIntentFactory,
-            ViewCaptureAwareWindowManager viewCaptureAwareWindowManager
+            ViewCaptureAwareWindowManager viewCaptureAwareWindowManager,
+            BurnInProtectionController burnInProtectionController
     ) {
         mContext = context;
         mNotificationsController = notificationsController;
@@ -819,6 +825,7 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
         statusBarWindowStateController.addListener(this::onStatusBarWindowStateChanged);
 
         mScreenOffAnimationController = screenOffAnimationController;
+        mBurnInProtectionController = burnInProtectionController;
 
         ShadeExpansionListener shadeExpansionListener = this::onPanelExpansionChanged;
         ShadeExpansionChangeEvent currentState =
@@ -880,45 +887,6 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
         mKeyguardIndicationController.init();
 
         mColorExtractor.addOnColorsChangedListener(mOnColorsChangedListener);
-
-        mNeedsNavigationBar = mContext.getResources().getBoolean(
-                com.android.internal.R.bool.config_showNavigationBar);
-        // Allow a system property to override this. Used by the emulator.
-        // See also hasNavigationBar().
-        String navBarOverride = SystemProperties.get("qemu.hw.mainkeys");
-        if ("1".equals(navBarOverride)) {
-            mNeedsNavigationBar = false;
-        } else if ("0".equals(navBarOverride)) {
-            mNeedsNavigationBar = true;
-        }
-
-        ContentObserver contentObserver = new ContentObserver(null) {
-            @Override
-            public void onChange(boolean selfChange) {
-                if (mDisplayId == Display.DEFAULT_DISPLAY
-                        && mWindowManagerService != null) {
-                    boolean forcedVisibility = mNeedsNavigationBar || LineageSettings.System.getInt(
-                            mContext.getContentResolver(),
-                            LineageSettings.System.FORCE_SHOW_NAVBAR, 0) != 0;
-                    boolean hasNavbar = getNavigationBarView() != null;
-                    mContext.getMainExecutor().execute(() -> {
-                        if (forcedVisibility) {
-                            if (!hasNavbar) {
-                                mNavigationBarController.onDisplayReady(mDisplayId);
-                            }
-                        } else {
-                            if (hasNavbar) {
-                                mNavigationBarController.onDisplayRemoved(mDisplayId);
-                            }
-                        }
-                    });
-                }
-            }
-        };
-        mContext.getContentResolver().registerContentObserver(
-                LineageSettings.System.getUriFor(LineageSettings.System.FORCE_SHOW_NAVBAR), false,
-                contentObserver);
-        contentObserver.onChange(true);
 
         mWindowManager = (WindowManager) mContext.getSystemService(Context.WINDOW_SERVICE);
 
@@ -1245,6 +1213,7 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
                     mShadeSurface.updateExpansionAndVisibility();
                     setBouncerShowingForStatusBarComponents(mBouncerShowing);
                     checkBarModes();
+                    mBurnInProtectionController.setPhoneStatusBarView(mStatusBarView);
                 });
         mStatusBarInitializer.initializeStatusBar();
 
@@ -1335,6 +1304,7 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
                             .withDefault(this::createDefaultQSFragment)
                             .build());
             mBrightnessMirrorController = new BrightnessMirrorController(
+                    mContext,
                     getNotificationShadeWindowView(),
                     mShadeSurface,
                     mNotificationShadeDepthControllerLazy.get(),
@@ -1480,7 +1450,6 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_CLOSE_SYSTEM_DIALOGS);
         filter.addAction(Intent.ACTION_SCREEN_OFF);
-        filter.addAction(lineageos.content.Intent.ACTION_SCREEN_CAMERA_GESTURE);
         mBroadcastDispatcher.registerReceiver(mBroadcastReceiver, filter, null, UserHandle.ALL);
     }
 
@@ -1526,6 +1495,7 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
     // Try to remove this.
     protected void createNavigationBar(@Nullable RegisterStatusBarResult result) {
         mNavigationBarController.createNavigationBars(true /* includeDefaultDisplay */, result);
+        mBurnInProtectionController.setNavigationBarView(getNavigationBarView());
     }
 
     /**
@@ -1968,20 +1938,6 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
                 }
                 finishBarAnimations();
                 mNotificationsController.resetUserExpandedStates();
-            } else if (lineageos.content.Intent.ACTION_SCREEN_CAMERA_GESTURE.equals(action)) {
-                boolean userSetupComplete = Settings.Secure.getInt(mContext.getContentResolver(),
-                        Settings.Secure.USER_SETUP_COMPLETE, 0) != 0;
-                if (!userSetupComplete) {
-                    if (DEBUG) Log.d(TAG, String.format(
-                            "userSetupComplete = %s, ignoring camera launch gesture.",
-                            userSetupComplete));
-                    return;
-                }
-
-                // This gets executed before we will show Keyguard, so post it in order that the
-                // state is correct.
-                mMainExecutor.execute(() -> mCommandQueueCallbacks.onCameraLaunchGestureDetected(
-                        StatusBarManager.CAMERA_LAUNCH_SOURCE_SCREEN_GESTURE));
             }
             Trace.endSection();
         }
@@ -2548,6 +2504,8 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
 
             updateNotificationPanelTouchState();
             getNotificationShadeWindowViewController().cancelCurrentTouch();
+
+            mBurnInProtectionController.stopShiftTimer();
             if (mLaunchCameraOnFinishedGoingToSleep) {
                 mLaunchCameraOnFinishedGoingToSleep = false;
 
@@ -2715,6 +2673,7 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
                 }
             }
             updateScrimController();
+            mBurnInProtectionController.startShiftTimer();
         }
     };
 
@@ -2926,7 +2885,6 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
     protected KeyguardManager mKeyguardManager;
     private final DeviceProvisionedController mDeviceProvisionedController;
 
-    private boolean mNeedsNavigationBar;
     private final NavigationBarController mNavigationBarController;
     private final AccessibilityFloatingMenuController mAccessibilityFloatingMenuController;
 

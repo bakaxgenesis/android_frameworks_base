@@ -168,6 +168,7 @@ import com.android.server.display.color.ColorDisplayService;
 import com.android.server.dreams.DreamManagerService;
 import com.android.server.emergency.EmergencyAffordanceService;
 import com.android.server.flags.FeatureFlagsService;
+import com.android.server.genesis.CustomDeviceConfigService;
 import com.android.server.gpu.GpuService;
 import com.android.server.grammaticalinflection.GrammaticalInflectionService;
 import com.android.server.graphics.fonts.FontManagerService;
@@ -221,6 +222,8 @@ import com.android.server.pm.dex.OdsignStatsLogger;
 import com.android.server.pm.permission.PermissionMigrationHelper;
 import com.android.server.pm.permission.PermissionMigrationHelperImpl;
 import com.android.server.pm.verify.domain.DomainVerificationService;
+import com.android.server.pocket.PocketBridgeService;
+import com.android.server.pocket.PocketService;
 import com.android.server.policy.AppOpsPolicy;
 import com.android.server.policy.PermissionPolicyService;
 import com.android.server.policy.PhoneWindowManager;
@@ -300,9 +303,6 @@ import java.io.File;
 import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
@@ -485,6 +485,8 @@ public final class SystemServer implements Dumpable {
     private final boolean mRuntimeRestart;
     private final long mRuntimeStartElapsedTime;
     private final long mRuntimeStartUptime;
+
+    public boolean safeMode = false;
 
     private static final String START_HIDL_SERVICES = "StartHidlServices";
     private static final String START_SENSOR_MANAGER_SERVICE = "StartISensorManagerService";
@@ -1763,7 +1765,10 @@ public final class SystemServer implements Dumpable {
 
         // Before things start rolling, be sure we have decided whether
         // we are in safe mode.
-        final boolean safeMode = wm.detectSafeMode();
+
+        if(wm != null) {
+            safeMode = wm.detectSafeMode();
+        }
         if (safeMode) {
             // If yes, immediately turn on the global setting for airplane mode.
             // Note that this does not send broadcasts at this stage because
@@ -2683,6 +2688,20 @@ public final class SystemServer implements Dumpable {
             mSystemServiceManager.startService(CrossProfileAppsService.class);
             t.traceEnd();
 
+            if (context.getResources().getBoolean(
+                    com.android.internal.R.bool.config_pocketModeSupported)) {
+                t.traceBegin("StartPocketService");
+                mSystemServiceManager.startService(PocketService.class);
+                t.traceEnd();
+            }
+
+            if (!context.getResources().getString(
+                    com.android.internal.R.string.config_pocketBridgeSysfsInpocket).isEmpty()) {
+                t.traceBegin("StartPocketBridgeService");
+                mSystemServiceManager.startService(PocketBridgeService.class);
+                t.traceEnd();
+            }
+
             t.traceBegin("StartPeopleService");
             mSystemServiceManager.startService(PeopleService.class);
             t.traceEnd();
@@ -2698,6 +2717,11 @@ public final class SystemServer implements Dumpable {
                 mSystemServiceManager.startService(BackgroundInstallControlService.class);
                 t.traceEnd();
             }
+
+            // CustomDeviceConfigService
+            t.traceBegin("StartCustomDeviceConfigService");
+            mSystemServiceManager.startService(CustomDeviceConfigService.class);
+            t.traceEnd();
         }
 
         t.traceBegin("StartMediaProjectionManager");
@@ -2874,26 +2898,6 @@ public final class SystemServer implements Dumpable {
         t.traceBegin("startTracingServiceProxy");
         mSystemServiceManager.startService(TracingServiceProxy.class);
         t.traceEnd();
-
-        // Lineage Services
-        String externalServer = context.getResources().getString(
-                org.lineageos.platform.internal.R.string.config_externalSystemServer);
-        final Class<?> serverClazz;
-        try {
-            serverClazz = Class.forName(externalServer);
-            final Constructor<?> constructor = serverClazz.getDeclaredConstructor(Context.class);
-            constructor.setAccessible(true);
-            final Object baseObject = constructor.newInstance(mSystemContext);
-            final Method method = baseObject.getClass().getDeclaredMethod("run");
-            method.setAccessible(true);
-            method.invoke(baseObject);
-        } catch (ClassNotFoundException
-                | IllegalAccessException
-                | InvocationTargetException
-                | InstantiationException
-                | NoSuchMethodException e) {
-            reportWtf("Making " + externalServer + " ready", e);
-        }
 
         // It is now time to start up the app processes...
 

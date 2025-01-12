@@ -58,12 +58,12 @@ public class BrightnessSliderController extends ViewController<BrightnessSliderV
     private Listener mListener;
     @Nullable
     private ToggleSlider mMirror;
-    private ImageView mIcon;
     @Nullable
     private MirrorController mMirrorController;
     private boolean mTracking;
     private final FalsingManager mFalsingManager;
     private final UiEventLogger mUiEventLogger;
+    private ImageView mIconView;
 
     private final SeekbarHapticPlugin mBrightnessSliderHapticPlugin;
     private final ActivityStarter mActivityStarter;
@@ -87,16 +87,17 @@ public class BrightnessSliderController extends ViewController<BrightnessSliderV
 
     BrightnessSliderController(
             BrightnessSliderView brightnessSliderView,
+            ImageView icon,
             FalsingManager falsingManager,
             UiEventLogger uiEventLogger,
             SeekbarHapticPlugin brightnessSliderHapticPlugin,
             ActivityStarter activityStarter) {
         super(brightnessSliderView);
+        mIconView = icon;
         mFalsingManager = falsingManager;
         mUiEventLogger = uiEventLogger;
         mBrightnessSliderHapticPlugin = brightnessSliderHapticPlugin;
         mActivityStarter = activityStarter;
-        mIcon = mView.findViewById(R.id.brightness_icon);
     }
 
     /**
@@ -106,8 +107,8 @@ public class BrightnessSliderController extends ViewController<BrightnessSliderV
         return mView;
     }
 
-    public ImageView getIcon() {
-        return mIcon;
+    public ImageView getIconView() {
+        return mIconView;
     }
 
     @Override
@@ -322,8 +323,9 @@ public class BrightnessSliderController extends ViewController<BrightnessSliderV
                     mVibratorHelper,
                     mSystemClock);
             HapticSliderViewBinder.bind(viewRoot, plugin);
+            ImageView icon = (ImageView) root.findViewById(R.id.brightness_icon);
             return new BrightnessSliderController(
-                    root, mFalsingManager, mUiEventLogger, plugin, mActivityStarter);
+                    root, icon, mFalsingManager, mUiEventLogger, plugin, mActivityStarter);
         }
 
         /** Get the layout to inflate based on what slider to use */
