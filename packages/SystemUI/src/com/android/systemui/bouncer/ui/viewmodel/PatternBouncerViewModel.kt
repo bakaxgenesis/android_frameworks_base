@@ -49,12 +49,10 @@ class PatternBouncerViewModel(
     ) {
 
     /** The number of columns in the dot grid. */
-    val columnCount: Byte
-        get() = interactor.patternSize.value
+    val columnCount = 3
 
     /** The number of rows in the dot grid. */
-    val rowCount: Byte
-        get() = interactor.patternSize.value
+    val rowCount = 3
 
     private val _selectedDots = MutableStateFlow<LinkedHashSet<PatternDotViewModel>>(linkedSetOf())
 

@@ -252,8 +252,6 @@ import kotlinx.coroutines.CoroutineDispatcher;
 import kotlinx.coroutines.flow.Flow;
 import kotlinx.coroutines.flow.StateFlow;
 
-import lineageos.providers.LineageSettings;
-
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -956,10 +954,8 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
         mDoubleTapToSleepObserver = new ContentObserver(handler) {
             @Override
             public void onChange(boolean selfChange) {
-                mDoubleTapToSleepEnabled = LineageSettings.System.getInt(mContentResolver,
-                        LineageSettings.System.DOUBLE_TAP_SLEEP_GESTURE,
-                        mResources.getBoolean(org.lineageos.platform.internal.R.bool.
-                                config_dt2sGestureEnabledByDefault) ? 1 : 0) != 0;
+                mDoubleTapToSleepEnabled = Settings.System.getInt(mContentResolver,
+                        Settings.System.DOUBLE_TAP_SLEEP_GESTURE, 0) != 0;
             }
         };
         mConversationNotificationManager = conversationNotificationManager;
@@ -2789,9 +2785,6 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
                 && !mKeyguardBypassController.getBypassEnabled()
                 && !mQsController.getFullyExpanded()) {
                 alpha *= mClockPositionResult.clockAlpha;
-            }
-            if (mQsController.isExpandImmediate() && !mQsController.getFullyExpanded()) {
-                alpha = 0f;
             }
             mNotificationStackScrollLayoutController.setMaxAlphaForKeyguard(alpha,
                     "NPVC.updateNotificationTranslucency()");
@@ -4730,8 +4723,8 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
                 mStatusBarStateListener.onStateChanged(mStatusBarStateController.getState());
             }
             mConfigurationController.addCallback(mConfigurationListener);
-            mContentResolver.registerContentObserver(LineageSettings.System.getUriFor(
-                    LineageSettings.System.DOUBLE_TAP_SLEEP_GESTURE), false,
+            mContentResolver.registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.DOUBLE_TAP_SLEEP_GESTURE), false,
                     mDoubleTapToSleepObserver);
             mDoubleTapToSleepObserver.onChange(true);
             // Theme might have changed between inflating this view and attaching it to the

@@ -129,9 +129,8 @@ import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.Immutable;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.os.SomeArgs;
+import com.android.internal.util.PropImitationHooks;
 import com.android.internal.util.UserIcons;
-
-import com.nvidia.NvAppProfileService;
 
 import dalvik.system.VMRuntime;
 
@@ -186,7 +185,6 @@ public class ApplicationPackageManager extends PackageManager {
     private volatile UserManager mUserManager;
     private volatile PermissionManager mPermissionManager;
     private volatile PackageInstaller mInstaller;
-    private volatile NvAppProfileService mAppProfileService;
     private volatile ArtManager mArtManager;
     private volatile DevicePolicyManager mDevicePolicyManager;
     private volatile String mPermissionsControllerPackageName;
@@ -496,15 +494,6 @@ public class ApplicationPackageManager extends PackageManager {
     public boolean isWirelessConsentModeEnabled() {
         return mContext.getResources().getBoolean(
                 com.android.internal.R.bool.config_wirelessConsentRequired);
-    }
-
-    /** @hide */
-    @Override
-    public NvAppProfileService getAppProfileService() {
-        if (mAppProfileService == null) {
-            mAppProfileService = new NvAppProfileService(mContext);
-        }
-        return mAppProfileService;
     }
 
     @Override
@@ -840,7 +829,8 @@ public class ApplicationPackageManager extends PackageManager {
 
     @Override
     public boolean hasSystemFeature(String name, int version) {
-        return mHasSystemFeatureCache.query(new HasSystemFeatureQuery(name, version));
+        return PropImitationHooks.hasSystemFeature(name,
+                mHasSystemFeatureCache.query(new HasSystemFeatureQuery(name, version)));
     }
 
     /** @hide */

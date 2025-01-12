@@ -15,11 +15,14 @@
  */
 package com.android.systemui.tuner;
 
+import android.app.Activity;
 import android.app.Fragment;
 import android.app.FragmentTransaction;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.MenuItem;
 import android.view.Window;
+import android.view.WindowManager;
 
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -27,8 +30,6 @@ import androidx.core.graphics.Insets;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragment;
 import androidx.preference.PreferenceScreen;
-
-import com.android.settingslib.collapsingtoolbar.CollapsingToolbarBaseActivity;
 
 import com.android.systemui.Dependency;
 import com.android.systemui.demomode.DemoModeController;
@@ -40,6 +41,8 @@ import com.google.android.material.color.DynamicColors;
 
 import javax.inject.Inject;
 
+import com.android.settingslib.collapsingtoolbar.CollapsingToolbarBaseActivity;
+
 public class TunerActivity extends CollapsingToolbarBaseActivity implements
         PreferenceFragment.OnPreferenceStartFragmentCallback,
         PreferenceFragment.OnPreferenceStartScreenCallback {
@@ -47,29 +50,33 @@ public class TunerActivity extends CollapsingToolbarBaseActivity implements
     private static final String TAG_TUNER = "tuner";
 
     private final DemoModeController mDemoModeController;
+    private final TunerService mTunerService;
     private final GlobalSettings mGlobalSettings;
 
     @Inject
     TunerActivity(
             DemoModeController demoModeController,
+            TunerService tunerService,
             GlobalSettings globalSettings
     ) {
         super();
         mDemoModeController = demoModeController;
+        mTunerService = tunerService;
         mGlobalSettings = globalSettings;
     }
 
     protected void onCreate(Bundle savedInstanceState) {
+        requestWindowFeature(Window.FEATURE_NO_TITLE);
         super.onCreate(savedInstanceState);
+
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
         setContentView(R.layout.tuner_activity);
 
         DynamicColors.applyToActivityIfAvailable(this);
         setTheme(com.android.settingslib.widget.theme.R.style.Theme_SubSettingsBase);
-
         // Handle window insets for padding adjustments
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.content_frame), (view, insets) -> {
             Insets systemInsets = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-
             view.setPadding(
                 view.getPaddingLeft(),
                 view.getPaddingTop(),
@@ -87,7 +94,7 @@ public class TunerActivity extends CollapsingToolbarBaseActivity implements
             } else if ("com.android.settings.action.STATUS_BAR_TUNER".equals(action)) {
                 fragment = new StatusBarTuner();
             } else {
-                fragment = new TunerFragment();
+                fragment = new TunerFragment(mTunerService);
             }
 
             getFragmentManager().beginTransaction().replace(R.id.content_frame,
@@ -99,6 +106,15 @@ public class TunerActivity extends CollapsingToolbarBaseActivity implements
     protected void onDestroy() {
         super.onDestroy();
         Dependency.destroy(FragmentService.class, s -> s.destroyAll());
+    }
+
+    @Override
+    public boolean onMenuItemSelected(int featureId, MenuItem item) {
+        if (item.getItemId() == android.R.id.home) {
+            onBackPressed();
+            return true;
+        }
+        return super.onMenuItemSelected(featureId, item);
     }
 
     @Override

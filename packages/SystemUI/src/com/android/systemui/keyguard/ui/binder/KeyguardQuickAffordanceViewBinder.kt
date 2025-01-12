@@ -227,12 +227,7 @@ object KeyguardQuickAffordanceViewBinder {
                     shakeAnimator.doOnEnd { view.translationX = 0f }
                     shakeAnimator.start()
 
-                    vibratorHelper?.vibrate(
-                        if (KeyguardBottomAreaVibrations.areAllPrimitivesSupported) {
-                            KeyguardBottomAreaVibrations.Shake
-                        } else {
-                            KeyguardBottomAreaVibrations.ShakeAlt
-                        })
+                    vibratorHelper?.vibrate(KeyguardBottomAreaVibrations.Shake)
                 }
                 view.onLongClickListener =
                     OnLongClickListener(falsingManager, viewModel, vibratorHelper, onTouchListener)
@@ -311,17 +306,9 @@ object KeyguardQuickAffordanceViewBinder {
                 )
                 vibratorHelper?.vibrate(
                     if (viewModel.isActivated) {
-                        if (KeyguardBottomAreaVibrations.areAllPrimitivesSupported) {
-                            KeyguardBottomAreaVibrations.Activated
-                        } else {
-                            KeyguardBottomAreaVibrations.ActivatedAlt
-                        }
+                        KeyguardBottomAreaVibrations.Activated
                     } else {
-                        if (KeyguardBottomAreaVibrations.areAllPrimitivesSupported) {
-                            KeyguardBottomAreaVibrations.Deactivated
-                        } else {
-                            KeyguardBottomAreaVibrations.DeactivatedAlt
-                        }
+                        KeyguardBottomAreaVibrations.Deactivated
                     }
                 )
             }

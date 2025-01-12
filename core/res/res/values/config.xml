@@ -1148,7 +1148,6 @@
             3 - Power off (without confirmation)
             4 - Go to voice assist
             5 - Go to assistant (Settings.Secure.ASSISTANT)
-            6 - Toggle torch on / off (if screen is off)
     -->
     <integer name="config_longPressOnPowerBehavior">5</integer>
 
@@ -3670,7 +3669,7 @@
         <item>restart</item>
         <item>logout</item>
         <item>screenshot</item>
-        <item>bugreport</item>
+        <!--<item>bugreport</item>-->
     </string-array>
 
     <!-- Number of milliseconds to hold a wake lock to ensure that drawing is fully

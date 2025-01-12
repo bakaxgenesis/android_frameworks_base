@@ -19,12 +19,12 @@ package com.android.systemui.shade
 import android.content.Context
 import android.database.ContentObserver
 import android.os.PowerManager
+import android.provider.Settings
 import android.view.GestureDetector
 import android.view.MotionEvent
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.plugins.FalsingManager
 import com.android.systemui.plugins.statusbar.StatusBarStateController
-import lineageos.providers.LineageSettings
 import javax.inject.Inject
 
 @SysUISingleton
@@ -41,14 +41,12 @@ class QQSGestureListener @Inject constructor(
     init {
         val contentObserver = object : ContentObserver(null) {
             override fun onChange(selfChange: Boolean) {
-                doubleTapToSleepEnabled = LineageSettings.System.getInt(
-                        context.contentResolver, LineageSettings.System.DOUBLE_TAP_SLEEP_GESTURE,
-                        if (context.resources.getBoolean(org.lineageos.platform.internal.
-                                R.bool.config_dt2sGestureEnabledByDefault)) 1 else 0) != 0
+                doubleTapToSleepEnabled = Settings.System.getInt(
+                        context.contentResolver, Settings.System.DOUBLE_TAP_SLEEP_GESTURE, 0) != 0
             }
         }
         context.contentResolver.registerContentObserver(
-                LineageSettings.System.getUriFor(LineageSettings.System.DOUBLE_TAP_SLEEP_GESTURE),
+                Settings.System.getUriFor(Settings.System.DOUBLE_TAP_SLEEP_GESTURE),
                 false, contentObserver)
         contentObserver.onChange(true)
 

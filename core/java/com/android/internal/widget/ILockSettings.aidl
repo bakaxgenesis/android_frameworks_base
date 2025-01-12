@@ -109,5 +109,4 @@ interface ILockSettings {
     boolean isWeakEscrowTokenActive(long handle, int userId);
     boolean isWeakEscrowTokenValid(long handle, in byte[] token, int userId);
     void unlockUserKeyIfUnsecured(int userId);
-    byte getLockPatternSize(int userId);
 }

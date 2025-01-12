@@ -51,11 +51,14 @@ import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.Insets;
 import android.graphics.Rect;
+import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.provider.Settings;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -74,7 +77,6 @@ import android.window.WindowContext;
 import com.android.internal.app.ChooserActivity;
 import com.android.internal.logging.UiEventLogger;
 import com.android.internal.policy.PhoneWindow;
-import com.android.internal.statusbar.IStatusBarService;
 import com.android.settingslib.applications.InterestingConfigChanges;
 import com.android.systemui.broadcast.BroadcastDispatcher;
 import com.android.systemui.broadcast.BroadcastSender;
@@ -83,7 +85,6 @@ import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.flags.FeatureFlags;
 import com.android.systemui.res.R;
 import com.android.systemui.screenshot.TakeScreenshotService.RequestCallback;
-import com.android.systemui.screenshot.scroll.ScrollCaptureController;
 import com.android.systemui.screenshot.scroll.ScrollCaptureExecutor;
 import com.android.systemui.shared.system.TaskStackChangeListener;
 import com.android.systemui.shared.system.TaskStackChangeListeners;
@@ -198,7 +199,7 @@ public class ScreenshotController implements ScreenshotHandler {
     // From WizardManagerHelper.java
     private static final String SETTINGS_SECURE_USER_SETUP_COMPLETE = "user_setup_complete";
 
-    static final int SCREENSHOT_CORNER_DEFAULT_TIMEOUT_MILLIS = 6000;
+    static final int SCREENSHOT_CORNER_DEFAULT_TIMEOUT_MILLIS = 3000;
 
     private final WindowContext mContext;
     private final FeatureFlags mFlags;
@@ -218,13 +219,14 @@ public class ScreenshotController implements ScreenshotHandler {
     private final WindowManager.LayoutParams mWindowLayoutParams;
     @Nullable
     private final ScreenshotSoundController mScreenshotSoundController;
+    private final AudioManager mAudioManager;
+    private final Vibrator mVibrator;
     private final PhoneWindow mWindow;
     private final Display mDisplay;
     private final ScrollCaptureExecutor mScrollCaptureExecutor;
     private final ScreenshotNotificationSmartActionsProvider
             mScreenshotNotificationSmartActionsProvider;
     private final TimeoutHandler mScreenshotHandler;
-    private final IStatusBarService mStatusBarService;
     private final ActionIntentExecutor mActionIntentExecutor;
     private final UserManager mUserManager;
     private final AssistContentRequester mAssistContentRequester;
@@ -308,7 +310,6 @@ public class ScreenshotController implements ScreenshotHandler {
             BroadcastDispatcher broadcastDispatcher,
             ScreenshotNotificationSmartActionsProvider screenshotNotificationSmartActionsProvider,
             ScreenshotActionsController.Factory screenshotActionsControllerFactory,
-            IStatusBarService statusBarService,
             ActionIntentExecutor actionIntentExecutor,
             ActionExecutor.Factory actionExecutorFactory,
             UserManager userManager,
@@ -328,7 +329,6 @@ public class ScreenshotController implements ScreenshotHandler {
         mMainExecutor = mainExecutor;
         mScrollCaptureExecutor = scrollCaptureExecutor;
         mScreenshotNotificationSmartActionsProvider = screenshotNotificationSmartActionsProvider;
-        mStatusBarService = statusBarService;
         mBgExecutor = Executors.newSingleThreadExecutor();
         mBroadcastSender = broadcastSender;
         mBroadcastDispatcher = broadcastDispatcher;
@@ -381,6 +381,10 @@ public class ScreenshotController implements ScreenshotHandler {
             mScreenshotSoundController = null;
         }
 
+        // Grab system services needed for screenshot sound
+        mAudioManager = (AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
+        mVibrator = (Vibrator) mContext.getSystemService(Context.VIBRATOR_SERVICE);
+
         mCopyBroadcastReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -415,11 +419,6 @@ public class ScreenshotController implements ScreenshotHandler {
             Rect bounds = getFullScreenRect();
             screenshot.setBitmap(mImageCapture.captureDisplay(mDisplay.getDisplayId(), bounds));
             screenshot.setScreenBounds(bounds);
-        }
-        if (screenshot.getType() == WindowManager.TAKE_SCREENSHOT_SELECTED_REGION) {
-            startPartialScreenshotActivity(Process.myUserHandle());
-            finisher.accept(null);
-            return;
         }
 
         if (screenshot.getBitmap() == null) {
@@ -711,29 +710,6 @@ public class ScreenshotController implements ScreenshotHandler {
         );
     }
 
-    private void startPartialScreenshotActivity(UserHandle owner) {
-        Bitmap newScreenshot = mImageCapture.captureDisplay(mDisplay.getDisplayId(),
-                getFullScreenRect());
-        ScrollCaptureController.BitmapScreenshot bitmapScreenshot =
-                new ScrollCaptureController.BitmapScreenshot(mContext, newScreenshot);
-
-        mScrollCaptureExecutor.executeBatchScrollCapture(bitmapScreenshot,
-                () -> {
-                    final Intent intent = ActionIntentCreator.INSTANCE.createLongScreenshotIntent(
-                            owner, mContext);
-                    mContext.startActivity(intent);
-
-                    try {
-                        mStatusBarService.collapsePanels();
-                    } catch (RemoteException e) {
-                        Log.e(TAG, "Error during collapsing panels", e);
-                    }
-                },
-                (destination, onTransitionEnd, longScreenshot) -> {
-                    onTransitionEnd.run();
-                });
-    }
-
     private void onScrollButtonClicked(UserHandle owner, ScrollCaptureResponse response) {
         if (DEBUG_INPUT) {
             Log.d(TAG, "scroll chip tapped");
@@ -833,7 +809,7 @@ public class ScreenshotController implements ScreenshotHandler {
      */
     private void saveScreenshotAndToast(UserHandle owner, Consumer<Uri> finisher) {
         // Play the shutter sound to notify that we've taken a screenshot
-        playCameraSoundIfNeeded();
+        playShutterSound();
 
         saveScreenshotInWorkerThread(
                 owner,
@@ -877,7 +853,7 @@ public class ScreenshotController implements ScreenshotHandler {
         }
 
         // Play the shutter sound to notify that we've taken a screenshot
-        playCameraSoundIfNeeded();
+        playShutterSound();
 
         if (DEBUG_ANIM) {
             Log.d(TAG, "starting post-screenshot animation");
@@ -1126,6 +1102,31 @@ public class ScreenshotController implements ScreenshotHandler {
                     + ", bounds: " + boundsAspect);
         }
         return matchWithinTolerance;
+    }
+
+    private void playShutterSound() {
+       boolean playSound = false;
+        switch (mAudioManager.getRingerMode()) {
+            case AudioManager.RINGER_MODE_SILENT:
+                // do nothing
+                break;
+            case AudioManager.RINGER_MODE_VIBRATE:
+                if (mVibrator != null && mVibrator.hasVibrator()) {
+                    mVibrator.vibrate(VibrationEffect.createOneShot(50,
+                            VibrationEffect.DEFAULT_AMPLITUDE));
+                }
+                break;
+            case AudioManager.RINGER_MODE_NORMAL:
+                // in this case we want to play sound even if not forced on
+                playSound = true;
+                break;
+        }
+        // We want to play the shutter sound when it's either forced or
+        // when we use normal ringer mode
+        if (playSound && Settings.System.getIntForUser(mContext.getContentResolver(),
+                Settings.System.SCREENSHOT_SHUTTER_SOUND, 1, UserHandle.USER_CURRENT) == 1) {
+            playCameraSoundIfNeeded();
+        }
     }
 
     /** Injectable factory to create screenshot controller instances for a specific display. */

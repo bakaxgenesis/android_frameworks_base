@@ -70,8 +70,4 @@ public interface NavigationBarController {
     /** @return {@link NavigationBar} on the default display. */
     @Nullable
     NavigationBar getDefaultNavigationBar();
-
-    /** Aliased to internal CommandQueue callbacks. */
-    void onDisplayReady(int displayId);
-    void onDisplayRemoved(int displayId);
 }
